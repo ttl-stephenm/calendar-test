@@ -30,6 +30,7 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Paint.Align;
 import android.graphics.Paint.Style;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.text.format.DateUtils;
@@ -37,6 +38,9 @@ import android.text.format.Time;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+
+import androidx.annotation.Size;
+import androidx.core.content.res.ResourcesCompat;
 
 import com.ttl.calendar.R;
 import com.ttl.calendar.calendarview.CalendarUtils;
@@ -147,7 +151,7 @@ class SimpleMonthView extends View
         MINI_DAY_NUMBER_TEXT_SIZE = typedArray.getDimensionPixelSize(R.styleable.DayPickerView_textSizeDay, resources.getDimensionPixelSize(R.dimen.text_size_day));
         MONTH_LABEL_TEXT_SIZE = typedArray.getDimensionPixelSize(R.styleable.DayPickerView_textSizeMonth, resources.getDimensionPixelSize(R.dimen.text_size_month));
         MONTH_DAY_LABEL_TEXT_SIZE = typedArray.getDimensionPixelSize(R.styleable.DayPickerView_textSizeDayName, resources.getDimensionPixelSize(R.dimen.text_size_day_name));
-        MONTH_HEADER_SIZE = typedArray.getDimensionPixelOffset(R.styleable.DayPickerView_headerMonthHeight, resources.getDimensionPixelOffset(R.dimen.header_month_height));
+        MONTH_HEADER_SIZE = typedArray.getDimensionPixelSize(R.styleable.DayPickerView_headerMonthHeight, resources.getDimensionPixelOffset(R.dimen.header_month_height));
         DAY_SELECTED_CIRCLE_SIZE = typedArray.getDimensionPixelSize(R.styleable.DayPickerView_selectedDayRadius, resources.getDimensionPixelOffset(R.dimen.selected_day_radius));
 
         mRowHeight = ((typedArray.getDimensionPixelSize(R.styleable.DayPickerView_calendarHeight, resources.getDimensionPixelOffset(R.dimen.calendar_height)) - MONTH_HEADER_SIZE) / 6);
@@ -179,15 +183,18 @@ class SimpleMonthView extends View
 
 	private void drawMonthTitle(Canvas canvas) {
         int x = (mWidth + 2 * mPadding) / 2;
-        int y = (MONTH_HEADER_SIZE - MONTH_DAY_LABEL_TEXT_SIZE) / 2 + (MONTH_LABEL_TEXT_SIZE / 3);
-        StringBuilder stringBuilder = new StringBuilder(getMonthAndYearString().toLowerCase());
+
+        StringBuilder stringBuilder = new StringBuilder(getMonthAndYearString());
+        Rect b = new Rect();
+        mMonthTitlePaint.getTextBounds(getMonthAndYearString(), 0, getMonthAndYearString().length(), b);
+
+        int y = (MONTH_HEADER_SIZE) / 2 + b.height() / 2;
+
         Paint p = new Paint();
         p.setColor(0xFFD9D8D6);
 
-        canvas.drawRect(0, 20, getWidth(), 80, p);
+        canvas.drawRoundRect(0, 0, getWidth(), MONTH_HEADER_SIZE, 8, 8, p);
         canvas.drawText(stringBuilder.toString(), x, y, mMonthTitlePaint);
-
-        Log.e("Cal", "Month @ " + y);
 	}
 
 	private int findDayOffset() {
@@ -217,11 +224,10 @@ class SimpleMonthView extends View
     }
 
 	protected void drawMonthNums(Canvas canvas) {
-		int y = (mRowHeight + MINI_DAY_NUMBER_TEXT_SIZE) / 2 - DAY_SEPARATOR_WIDTH + MONTH_HEADER_SIZE / 2;
+		int y = (mRowHeight + MINI_DAY_NUMBER_TEXT_SIZE) / 2 - DAY_SEPARATOR_WIDTH + MONTH_HEADER_SIZE;
 		int paddingDay = (mWidth - 2 * mPadding) / (2 * mNumDays);
 		int dayOffset = findDayOffset();
 		int day = 1;
-		Log.e("Cal", "Day @ " + y);
 
 		while (day <= mNumCells) {
 			int x = paddingDay * (1 + dayOffset * 2) + mPadding;
@@ -229,17 +235,14 @@ class SimpleMonthView extends View
                     RectF rectF = new RectF(x - DAY_SELECTED_CIRCLE_SIZE, (y  - MINI_DAY_NUMBER_TEXT_SIZE / 3) - DAY_SELECTED_CIRCLE_SIZE, x + DAY_SELECTED_CIRCLE_SIZE, (y  - MINI_DAY_NUMBER_TEXT_SIZE / 3) + DAY_SELECTED_CIRCLE_SIZE);
                     canvas.drawRoundRect(rectF, 10.0f, 10.0f,mSelectedCirclePaint);
             }
-            if (mHasToday && (mToday == day)) {
-                mMonthNumPaint.setColor(mCurrentDayTextColor);
-                mMonthNumPaint.setTypeface(Typeface.defaultFromStyle(Typeface.BOLD));
-            } else {
+
 				mMonthNumPaint.setColor(mDayNumColor);
                 mMonthNumPaint.setTypeface(Typeface.defaultFromStyle(Typeface.NORMAL));
-            }
-            Log.e("TAG", mMonth + ", " + Calendar.MONTH);
-            if (mMonth == Calendar.MONTH) {
+
+                int nMonth = Calendar.getInstance().get(Calendar.MONTH);
+            if (mMonth == nMonth) {
                 if (day < mToday) {
-                    Log.e("ERROR", "ERROR");
+                    mMonthNumPaint.setColor(0xFFE0E0E0);
                 }
             }
 
@@ -302,13 +305,21 @@ class SimpleMonthView extends View
 	}
 
 	public SimpleMonthAdapter.CalendarDay getDayFromLocation(float x, float y) {
+        Log.e("TAG", "getDayFromLocation");
 		int padding = mPadding;
 		if ((x < padding) || (x > mWidth - mPadding)) {
 			return null;
 		}
 
-		int yDay = (int) (y - MONTH_HEADER_SIZE) / mRowHeight;
+		int yDay = (int) (y - 80) / mRowHeight;
 		int day = 1 + ((int) ((x - padding) * mNumDays / (mWidth - padding - mPadding)) - findDayOffset()) + yDay * mNumDays;
+
+        int nMonth = Calendar.getInstance().get(Calendar.MONTH);
+        if (mMonth == nMonth) {
+            if (day < mToday) {
+                return null;
+            }
+        }
 
         if (mMonth > 11 || mMonth < 0 || CalendarUtils.getDaysInMonth(mMonth, mYear) < day || day < 1)
             return null;
@@ -321,7 +332,7 @@ class SimpleMonthView extends View
         mMonthTitlePaint.setFakeBoldText(true);
         mMonthTitlePaint.setAntiAlias(true);
         mMonthTitlePaint.setTextSize(MONTH_LABEL_TEXT_SIZE);
-        //mMonthTitlePaint.setTypeface(Typeface.create(mMonthTitleTypeface, Typeface.BOLD));
+        mMonthTitlePaint.setTypeface(ResourcesCompat.getFont(getContext(), R.font.poppins));
         mMonthTitlePaint.setColor(mMonthTextColor);
         mMonthTitlePaint.setTextAlign(Align.CENTER);
         mMonthTitlePaint.setStyle(Style.FILL);
@@ -342,6 +353,7 @@ class SimpleMonthView extends View
         mSelectedCirclePaint.setAlpha(SELECTED_CIRCLE_ALPHA);
 
         mMonthDayLabelPaint = new Paint();
+        mMonthDayLabelPaint.setTypeface(ResourcesCompat.getFont(getContext(), R.font.poppins));
         mMonthDayLabelPaint.setAntiAlias(true);
         mMonthDayLabelPaint.setTextSize(MONTH_DAY_LABEL_TEXT_SIZE);
         mMonthDayLabelPaint.setColor(mDayTextColor);
